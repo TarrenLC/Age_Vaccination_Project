@@ -28,3 +28,326 @@ plot(pressure)
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r}
+
+packrat::init()
+
+```
+
+
+
+```{r}
+
+library(tidyverse)
+
+library(janitor)
+
+library(MASS)
+
+library(rstatix)
+
+library(coin)
+
+library(ggpubr)
+
+library(Hmisc)
+
+library(corrplot)
+
+library(foreign)
+
+library(reshape2)
+
+library(ordinal)
+
+library(oglmx)
+
+```
+
+
+```{r}
+#### Read in the data ####
+
+vacdf <- read.csv("NikitaData.csv")
+
+vacdf <- clean_names(vacdf)
+
+## Check variables
+
+structure(vacdf)
+
+vacdf$frame <- as.factor(vacdf$frame)
+
+vacdf$age_grp <- as.factor(vacdf$age_grp)
+
+vacdf.long <- pivot_longer(vacdf, cols = 14:15, names_to = "vaccine", values_to = "willingness")
+
+```
+
+
+```{r}
+#### Signed rank test to check preference between vaccines ####
+
+test1 <- wilcox.test(vacdf$will_pf, vacdf$will_as_z, paired = TRUE)
+
+test1
+
+
+## If you get an error about dataframe - make sure package is specified for
+## wilcox_test
+
+stat.test <- vacdf.long %>% 
+  rstatix::wilcox_test(willingness ~ vaccine, paired = TRUE) %>%
+  add_significance()
+stat.test
+
+rstatix::wilcox_effsize(vacdf.long, willingness ~ vaccine,paired = TRUE)
+
+### Significant
+
+
+p <- ggboxplot(vacdf.long, x = "vaccine", y = "willingness",
+          color = "vaccine", palette = "jco",
+          add = "jitter")
+#  Add p-value
+p + stat_compare_means()
+
+```
+
+
+```{r}
+
+#### Intercorrelations ####
+
+## Split by vaccine
+
+astra <- filter(vacdf.long, vaccine == "will_as_z")
+
+pfizer <- filter(vacdf.long, vaccine == "will_pf")
+
+## Astra Z intercorrelations
+
+## Dummy code frame
+
+astra$frame <- ifelse(astra$frame == "Positive", 1, 0)
+
+astra <- select(astra, "willingness","age", "frame", "risk_perception", "bis", "bas", "vax")
+
+az_cor <- cor(astra, method = "kendall")
+
+pfizer$frame <- ifelse(pfizer$frame == "Positive", 1, 0)
+
+pfizer <- select(pfizer, "willingness","age", "frame", "risk_perception", "bis", "bas", "vax")
+
+pf_cor <- cor(pfizer, method = "kendall")
+
+### Check individually ###
+
+## Astra
+
+az_age <- cor.test(astra$age, astra$willingness, method = "kendall")
+
+az_age
+
+az_frame <- cor.test(astra$frame, astra$willingness, method = "kendall")
+
+az_frame
+
+az_risk <- cor.test(astra$risk_perception, astra$willingness, method = "kendall")
+
+az_risk
+
+az_bis <- cor.test(astra$bis, astra$willingness, method = "kendall")
+
+az_bis
+
+az_bas <- cor.test(astra$bas, astra$willingness, method = "kendall")
+
+az_bas
+
+az_vax <- cor.test(astra$vax, astra$willingness, method = "kendall")
+
+az_vax
+
+## Pfizer
+
+pf_age <- cor.test(pfizer$age, pfizer$willingness, method = "kendall")
+
+pf_age
+
+pf_frame <- cor.test(pfizer$frame, pfizer$willingness, method = "kendall")
+
+pf_frame
+
+pf_risk <- cor.test(pfizer$risk_perception, pfizer$willingness, method = "kendall")
+
+pf_risk
+
+pf_bis <- cor.test(pfizer$bis, pfizer$willingness, method = "kendall")
+
+pf_bis
+
+pf_bas <- cor.test(pfizer$bas, pfizer$willingness, method = "kendall")
+
+pf_bas
+
+pf_vax <- cor.test(pfizer$vax, pfizer$willingness, method = "kendall")
+
+pf_vax
+
+## Others that had discrepency
+
+vacdf.long$frame <- ifelse(vacdf.long$frame == "Positive", 1, 0)
+
+age_frame <- cor.test(vacdf.long$age, vacdf.long$frame, method = "kendall")
+
+age_frame
+
+age_bis <- cor.test(vacdf.long$age, vacdf.long$bis, method = "kendall")
+
+age_bis
+
+age_bas <- cor.test(vacdf.long$age, vacdf.long$bas, method = "kendall")
+
+age_bas
+
+frame_risk <- cor.test(vacdf.long$frame, vacdf.long$risk_perception, method = "kendall")
+
+frame_risk
+
+frame_vax <- cor.test(vacdf.long$frame, vacdf.long$vax, method = "kendall")
+
+frame_vax 
+
+risk_bis <- cor.test(vacdf.long$risk_perception, vacdf.long$bis, method = "kendall")
+
+risk_bis
+
+risk_bas <- cor.test(vacdf.long$risk_perception, vacdf.long$bas, method = "kendall")
+
+risk_bas
+
+bis_vax <- cor.test(vacdf.long$bis, vacdf.long$vax, method = "kendall")
+
+bis_vax
+
+bas_vax <- cor.test(vacdf.long$bas, vacdf.long$vax, method = "kendall")
+
+bas_vax
+
+### Check Ms and SDs
+
+astra %>% 
+  get_summary_stats(willingness, type = "mean_sd")
+
+pfizer %>% 
+  get_summary_stats(willingness, type = "mean_sd")
+
+vacdf.long %>% 
+  get_summary_stats(c(age, frame, risk_perception, bis, bas, vax), type = "mean_sd")
+
+
+```
+
+
+```{r}
+#### Logistic ordinal regression ####
+
+#Scatter Plot
+
+astra_long <- filter(vacdf.long, vaccine == "will_as_z")
+
+pfizer_long <- filter(vacdf.long, vaccine == "will_pf")
+
+plot(willingness ~ age, data  = astra_long , main = "Scatter Plot")
+
+### Pfizer ###
+
+pfizer_long$willingness <- factor(pfizer_long$willingness)
+
+summary(pfizer_long$willingness)
+
+pfizer_long$frame <- factor(pfizer_long$frame)
+
+summary(pfizer_long$frame)
+
+pfizer_long$risk_perception <- factor(pfizer_long$risk_perception)
+
+summary(pfizer_long$risk_perception)
+
+pf_m1 <- polr(willingness ~ 1, data = pfizer_long, Hess = TRUE)
+
+summary(pf_m1)
+
+## fit ordered logit model and store results 'm'
+pf_m2 <- polr(willingness ~ frame + age + risk_perception + 
+              bis + bas + vax + age*frame + age*bis + age*bas, 
+              data = pfizer_long, Hess=TRUE)
+
+## view a summary of the model
+summary(pf_m2)
+
+anova(pf_m1, pf_m2)
+
+## To get pvalues...
+
+(pf_ctable1 <- coef(summary(pf_m2)))
+
+## calculate and store p values
+pf_p1 <- pnorm(abs(pf_ctable1[, "t value"]), lower.tail = FALSE) * 2
+
+## combined table
+(pf_ctable1 <- cbind(pf_ctable1, "p value" = pf_p1))
+
+## Confidence intervals
+
+(pf_ci <- confint(pf_m2))
+
+## odds ratios
+exp(coef(pf_m2))
+
+## Check proportional odds
+
+sf <- function(y){
+  c('Y>=1' = qlogis(mean(y >= 1)),
+    'Y>=2' = qlogis(mean(y >= 2)),
+    'Y>=3' = qlogis(mean(y >= 3)),
+    'Y>=4' = qlogis(mean(y >= 4)),
+    'Y>=5' = qlogis(mean(y >= 5)))
+    }
+
+(s1 <- with(pfizer_long, summary(as.numeric(willingness) ~ frame + age + risk_perception + 
+                                   bis + bas + vax + age*frame + age*bis + age*bas, fun=sf)))
+
+glm(I(as.numeric(willingness) >= 3) ~ risk_perception, family="binomial", data = pfizer_long)
+
+glm(I(as.numeric(willingness) >= 4) ~ risk_perception, family="binomial", data = pfizer_long)
+
+## Normalise first set of coefficients to be 0
+
+s1[, 4] <- s1[, 4] - s1[, 3]
+s1[, 3] <- s1[, 3] - s1[, 3]
+s1 # print
+
+plot(s1, which=1:5, pch=1:3, xlab='logit', main=' ', xlim=range(s1[,3:4]))
+
+## Proportional odds assumption seems violated...
+
+## Trying generalized ordinal model
+
+pf_m3 <- clm(willingness ~ frame + risk_perception + age + bis + bas + vax, nominal = ~ age + bis + bas + vax, data = pfizer_long)
+
+pf_m3
+
+pf_m4 <- oglmx(willingness ~ frame + risk_perception + age + bis + bas + vax +
+                age*frame + age*bis + age*bas, data = pfizer_long,
+               link="probit", constantMEAN = FALSE, constantSD = FALSE,delta=0,threshparam = NULL)
+
+summary(pf_m4)
+
+```
+
+
+
