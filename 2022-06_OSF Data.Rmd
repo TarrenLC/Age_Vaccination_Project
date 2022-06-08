@@ -1,0 +1,172 @@
+---
+title: "Vaccine_data"
+author: "T.L"
+date: '2022-06-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+### Checking analyses with data from Nakita's osf
+
+
+library(tidyverse)
+
+library(janitor)
+
+library(MASS)
+
+library(rstatix)
+
+library(coin)
+
+library(ggpubr)
+
+library(Hmisc)
+
+library(corrplot)
+
+library(foreign)
+
+library(reshape2)
+
+library(ordinal)
+
+library(oglmx)
+
+library(PerformanceAnalytics)
+
+```
+
+
+```{r}
+#### Read in the data ####
+
+vacdf <- read.csv("Vaccinedata.csv")
+
+vacdf <- clean_names(vacdf)
+
+## Check variables
+
+structure(vacdf)
+
+vacdf$frame <- as.factor(vacdf$frame)
+
+vacdf$age_grp <- as.factor(vacdf$age_grp)
+
+vacdf.long <- pivot_longer(vacdf, cols = 16:17, names_to = "vaccine", values_to = "willingness")
+
+```
+
+
+```{r}
+
+#### Signed rank test to check preference between vaccines ####
+
+test1 <- wilcox.test(vacdf$will_pf, vacdf$will_as_z, paired = TRUE)
+
+test1
+
+
+## If you get an error about dataframe - make sure package is specified for
+## wilcox_test
+
+stat.test <- vacdf.long %>% 
+  rstatix::wilcox_test(willingness ~ vaccine, paired = TRUE) %>%
+  add_significance()
+stat.test
+
+rstatix::wilcox_effsize(vacdf.long, willingness ~ vaccine,paired = TRUE)
+
+### Significant
+
+
+p <- ggboxplot(vacdf.long, x = "vaccine", y = "willingness",
+          color = "vaccine", palette = "jco",
+          add = "jitter")
+#  Add p-value
+p + stat_compare_means()
+
+other_table <- xtabs(~vaccine + willingness , data = vacdf.long) 
+
+barplot(other_table,
+        main = "Grouped barchart",
+        xlab = "vaccine", ylab = "frequency",
+        col = c("darkgrey", "darkblue"),
+        legend.text = rownames(other_table),
+        beside = TRUE) # Grouped bars
+
+```
+
+
+```{r}
+
+#### Intercorrelations ####
+
+## Split by vaccine
+
+astra <- filter(vacdf.long, vaccine == "will_as_z")
+
+pfizer <- filter(vacdf.long, vaccine == "will_pf")
+
+## Astra Z intercorrelations
+
+## Dummy code frame
+
+astra$frame <- ifelse(astra$frame == "Positive", 1, 0)
+
+## Create average score for vax hesitency, bis score, and bas score.
+
+astra <- cbind(astra,vax=rowMeans(astra[16:27], na.rm=TRUE))
+
+## Items relating to BIS: 2, 8, 13, 16, 19, 22, 24
+
+astra <- cbind(astra,bis=rowMeans(select(astra, matches(c("bb2", "bb8", "bb13", "bb16", "bb19", "bb22", "bb24")))))
+
+## Items relating to BAS: 3, 9, 12, 21, 5, 10, 15, 20, 4, 7, 14, 18, 23
+
+astra <- cbind(astra,bas=rowMeans(select(astra, matches(c("bb3", "bb9", "bb12", "bb21", "bb5", "bb10", "bb15", "bb20", "bb4", "bb7", "bb14", "bb18", "bb23")))))
+
+astra <- select(astra, "willingness","age", "frame", "risk_perception", "bis", "bas", "vax")
+
+astra <- na.omit(astra)
+
+az_cor <- cor(astra, method = "kendall")
+
+az_cor
+
+## Visualise the correlation matrix
+
+chart.Correlation(astra, histogram=TRUE, method = "kendall")
+
+
+
+```
+
+
+
+
+
