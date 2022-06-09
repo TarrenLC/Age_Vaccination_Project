@@ -64,6 +64,8 @@ library(ordinal)
 
 library(oglmx)
 
+library(flexplot)
+
 ```
 
 
@@ -113,6 +115,17 @@ p <- ggboxplot(vacdf.long, x = "vaccine", y = "willingness",
           add = "jitter")
 #  Add p-value
 p + stat_compare_means()
+
+## Barplot to mimic one in paper
+
+other_table <- xtabs(~vaccine + willingness , data = vacdf.long) 
+
+barplot(other_table,
+        main = "Grouped barchart",
+        xlab = "vaccine", ylab = "frequency",
+        col = c("darkgrey", "darkblue"),
+        legend.text = rownames(other_table),
+        beside = TRUE) # Grouped bars
 
 ```
 
@@ -250,6 +263,82 @@ vacdf.long %>%
 
 
 ```
+
+
+
+```{r}
+
+# Visualise willingness between the vaccines
+
+flexplot(willingness~vaccine, data=vacdf.long, spread="sterr")
+
+flexplot(age~1, data=vacdf.long)
+
+## Astra visualisations
+
+flexplot(willingness~age, data=astra)
+
+flexplot(willingness~frame, data=astra)
+
+flexplot(willingness~risk_perception, data=astra)
+
+flexplot(willingness~bis, data=astra)
+
+flexplot(willingness~bas, data=astra)
+
+flexplot(willingness~vax, data=astra)
+
+flexplot(willingness~age + frame, data=astra, method="lm")
+
+flexplot(willingness~age + bis, data=astra, method="lm")
+
+flexplot(willingness~age + bas, data=astra, method="lm")
+
+flexplot(willingness~bis + frame, data=astra, method="lm")
+
+flexplot(willingness~bas + frame, data=astra, method="lm")
+
+## Pfizer
+
+flexplot(willingness~age, data=pfizer)
+
+added.plot(willingness~vax + age, data=pfizer)
+
+flexplot(willingness~frame, data=pfizer)
+
+flexplot(willingness~risk_perception, data=pfizer)
+
+flexplot(willingness~bis, data=pfizer)
+
+flexplot(willingness~bas, data=pfizer)
+
+flexplot(willingness~vax, data=pfizer)
+
+flexplot(willingness~age + frame, data=pfizer, method="lm")
+
+flexplot(willingness~age | bis, data=pfizer, method="lm")
+
+flexplot(willingness~age | bas, data=pfizer, method="lm")
+
+flexplot(willingness~bis + frame, data=pfizer, method="lm")
+
+flexplot(willingness~bas + frame, data=pfizer, method="lm")
+
+```
+
+
+```{r}
+### Astra analyses ###
+
+mod_interaction_az = lm(willingness~vax + frame + age + risk_perception + bis + bas +
+                          age*frame + age*bas + age*bis + frame*bis + frame*bas, data = astra)
+
+visualize(mod_interaction_az, plot="residuals")
+
+estimates(mod_interaction_az)
+
+```
+
 
 
 ```{r}
