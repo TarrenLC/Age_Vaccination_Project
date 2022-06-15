@@ -268,6 +268,8 @@ vacdf.long %>%
 
 ```{r}
 
+structure(astra)
+
 # Visualise willingness between the vaccines
 
 flexplot(willingness~vaccine, data=vacdf.long, spread="sterr")
@@ -290,6 +292,31 @@ flexplot(willingness~vax, data=astra)
 
 flexplot(willingness~age + frame, data=astra, method="lm")
 
+## Pannelled plots
+
+flexplot(willingness~age | frame, data=astra)
+
+## Quadratic 
+
+flexplot(willingness~age | frame, data=astra, method="quadratic")
+
+added.plot(willingness~age + frame , data=astra, 
+           lm_formula = willingness~vax)
+
+## Check if covariate interacts with IVs
+
+flexplot(willingness~vax + age, data=astra, method="lm")
+flexplot(willingness~age + vax, data=astra, method="lm") 
+
+# Interaction exists between age and vax
+
+## Check if vax interacts with frame
+
+flexplot(willingness~vax + frame, data=astra, method="lm")
+flexplot(willingness~frame + vax, data=astra, method="lm") 
+
+# It does.
+
 flexplot(willingness~age + bis, data=astra, method="lm")
 
 flexplot(willingness~age + bas, data=astra, method="lm")
@@ -298,7 +325,62 @@ flexplot(willingness~bis + frame, data=astra, method="lm")
 
 flexplot(willingness~bas + frame, data=astra, method="lm")
 
-## Pfizer
+### GLM for hypothesis 1 - gain frame messages will increase willingness as age increases (interaction)
+
+astra$scale_age <- scale(astra$age, scale = F)
+
+astra$scale_vax <- scale(astra$vax, scale = F)
+
+mod1_astra <- lm(willingness~scale_vax + scale_age*frame, data=astra)
+
+## Check residuals etc
+
+visualize(mod1_astra, plot="residuals")
+
+## Check more robust model
+
+mod1.2_astra = rlm(willingness~scale_vax + scale_age*frame, data=astra)
+
+## Compare visualisations of each robust and normal
+
+visualize(mod1_astra, plot="model")
+
+visualize(mod1.2_astra , plot="model") ### Look the same... 
+
+summary(mod1_astra)
+
+smallmod_astra = lm(willingness~1, data=astra)
+
+model.comparison(smallmod_astra, mod1_astra)
+
+compare.fits(willingness~age | frame, 
+             data=astra, 
+             model1 = mod1_astra,
+             model2 = smallmod_astra)
+
+estimates(mod1_astra)
+
+### Alternative hypothesis 1
+
+astra$scale_bis <- scale(astra$bis, scale = F)
+
+astra$scale_bas <- scale(astra$bas, scale = F)
+
+mod2_astra = lm(willingness~scale_vax + scale_bis*scale_age*frame + scale_bas*scale_age*frame, data = astra)
+
+visualize(mod2_astra, plot="residuals")
+
+model.comparison(smallmod_astra, mod2_astra)
+
+summary(mod2_astra)
+
+```
+
+
+```{r}
+### Pfizer regression analyses ###
+
+## Visualisations
 
 flexplot(willingness~age, data=pfizer)
 
