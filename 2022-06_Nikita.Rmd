@@ -78,13 +78,13 @@ vacdf <- clean_names(vacdf)
 
 ## Check variables
 
-structure(vacdf)
-
 vacdf$frame <- as.factor(vacdf$frame)
 
 vacdf$age_grp <- as.factor(vacdf$age_grp)
 
 vacdf.long <- pivot_longer(vacdf, cols = 14:15, names_to = "vaccine", values_to = "willingness")
+
+structure(vacdf.long)
 
 ```
 
@@ -267,20 +267,165 @@ vacdf.long %>%
 
 
 ```{r}
-
-structure(astra)
-
 # Visualise willingness between the vaccines
 
 flexplot(willingness~vaccine, data=vacdf.long, spread="sterr")
 
 flexplot(age~1, data=vacdf.long)
 
+### Univariate plots for astra data
+
+structure(astra)
+
+summary(astra)
+
 ## Astra visualisations
 
-flexplot(willingness~age, data=astra)
+flexplot(willingness~1, data=astra)
 
-flexplot(willingness~frame, data=astra)
+flexplot(age~1, data=astra)
+
+flexplot(vax~1, data=astra)
+
+flexplot(frame~1, data = astra)
+
+flexplot(bis~1, data = astra)
+
+flexplot(bas~1, data = astra)
+
+flexplot(risk_perception~1, data = astra)
+
+## Bivariate visualisations
+
+flexplot(willingness~age, data = astra)
+
+flexplot(willingness~frame, data = astra)
+
+flexplot(willingness~vax, data = astra)
+
+flexplot(willingness~bis, data = astra)
+
+flexplot(willingness~bas, data = astra)
+
+flexplot(willingness~risk_perception, data = astra)
+
+### Look for interactions for H1 - Age and frame interaction on willingness
+
+astra_p1 = flexplot(willingness~age + frame | vax, data = astra)
+
+marginal_plot(astra_p1)
+
+astra_p2 = flexplot(willingness~age + vax | frame, data = astra)
+
+marginal_plot(astra_p2)
+
+astra_p3 = flexplot(willingness~vax + age | frame, data = astra)
+
+marginal_plot(astra_p3)
+
+astra_p4 = flexplot(willingness~frame + age | vax, data = astra)
+
+marginal_plot(astra_p4)
+
+astra_p5 = flexplot(willingness~vax + frame | age, data = astra)
+
+marginal_plot(astra_p4)
+
+## Check for non-linearity
+
+# quadratic term for vax
+
+astra_mod1 = lm(willingness~vax +
+                  I(vax^2)+
+                  age*frame, data = astra)
+
+partial_residual_plot(willingness~age, 
+                      model=astra_mod1, 
+                      added_term = ~age, 
+                      data=astra) + 
+  xlab("Age") + 
+  theme_bw()
+
+
+partial_residual_plot(willingness~age | frame, 
+                      model=astra_mod1, 
+                      added_term = ~age*frame, 
+                      data=astra) + 
+  xlab("Age") + 
+  theme_bw()
+
+
+### Plot vax
+
+partial_residual_plot(willingness~vax, 
+                      model=astra_mod1, 
+                      added_term = ~vax + I(vax^2), 
+                      data=astra) +
+  xlab("Vaccination Hesitency")+
+  theme_bw()
+
+astra_mod2 = lm(willingness~vax + I(vax^2) +
+                  age*frame, data = astra)
+
+visualize(astra_mod2, plot="model")
+
+visualize(astra_mod2, plot="residuals")
+
+## Scale variables?
+
+astra$age_scaled <- astra$age - mean(astra$age, na.rm=TRUE)
+
+astra$vax_scaled <- astra$vax - mean(astra$vax, na.rm=TRUE)
+
+summary(astra)
+
+###  GLM for hypothesis 1 - gain frame messages will increase willingness as age increases (interaction)
+
+astra_mod3 = lm(willingness~vax_scaled + age_scaled*frame, data = astra)
+
+visualize(astra_mod3, plot="model")
+
+visualize(astra_mod3)
+
+## Plots look passable?
+
+summary(astra_mod3)
+
+#### H1 not supported.
+
+### Alternative hypothesis 1 - less bis and bas with age will have less effect on willingness
+
+astra$bis_scaled <- astra$age - mean(astra$bis, na.rm=TRUE)
+
+astra$bas_scaled <- astra$vax - mean(astra$bas, na.rm=TRUE)
+
+
+astra_a1 = flexplot(willingness~age + bis | vax, data = astra)
+
+marginal_plot(astra_a1)
+
+astra_a2 = flexplot(willingness~age + vax | bis, data = astra)
+
+marginal_plot(astra_a2)
+
+astra_a3 = flexplot(willingness~bis + age | vax, data = astra)
+
+marginal_plot(astra_a3)
+
+astra_moda1 = lm(willingness~vax_scaled + age_scaled*bis + age_scaled*bas, data = astra)
+
+visualize(astra_moda1)
+
+summary(astra_moda1)
+
+estimates(astra_moda1)
+
+
+
+```
+
+
+```{r}
 
 flexplot(willingness~risk_perception, data=astra)
 
@@ -290,11 +435,15 @@ flexplot(willingness~bas, data=astra)
 
 flexplot(willingness~vax, data=astra)
 
+flexplot(willingness~vax | age, data = astra, method = "lm")
+
 flexplot(willingness~age + frame, data=astra, method="lm")
 
 ## Pannelled plots
 
 flexplot(willingness~age | frame, data=astra)
+
+flexplot(willingness~age + frame | vax, data = astra)
 
 ## Quadratic 
 
@@ -324,55 +473,6 @@ flexplot(willingness~age + bas, data=astra, method="lm")
 flexplot(willingness~bis + frame, data=astra, method="lm")
 
 flexplot(willingness~bas + frame, data=astra, method="lm")
-
-### GLM for hypothesis 1 - gain frame messages will increase willingness as age increases (interaction)
-
-astra$scale_age <- scale(astra$age, scale = F)
-
-astra$scale_vax <- scale(astra$vax, scale = F)
-
-mod1_astra <- lm(willingness~scale_vax + scale_age*frame, data=astra)
-
-## Check residuals etc
-
-visualize(mod1_astra, plot="residuals")
-
-## Check more robust model
-
-mod1.2_astra = rlm(willingness~scale_vax + scale_age*frame, data=astra)
-
-## Compare visualisations of each robust and normal
-
-visualize(mod1_astra, plot="model")
-
-visualize(mod1.2_astra , plot="model") ### Look the same... 
-
-summary(mod1_astra)
-
-smallmod_astra = lm(willingness~1, data=astra)
-
-model.comparison(smallmod_astra, mod1_astra)
-
-compare.fits(willingness~age | frame, 
-             data=astra, 
-             model1 = mod1_astra,
-             model2 = smallmod_astra)
-
-estimates(mod1_astra)
-
-### Alternative hypothesis 1
-
-astra$scale_bis <- scale(astra$bis, scale = F)
-
-astra$scale_bas <- scale(astra$bas, scale = F)
-
-mod2_astra = lm(willingness~scale_vax + scale_bis*scale_age*frame + scale_bas*scale_age*frame, data = astra)
-
-visualize(mod2_astra, plot="residuals")
-
-model.comparison(smallmod_astra, mod2_astra)
-
-summary(mod2_astra)
 
 ```
 
