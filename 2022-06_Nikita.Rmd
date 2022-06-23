@@ -66,6 +66,12 @@ library(oglmx)
 
 library(flexplot)
 
+library(brant)
+
+library(effects)
+
+library(VGAM)
+
 ```
 
 
@@ -331,67 +337,9 @@ astra_p5 = flexplot(willingness~vax + frame | age, data = astra)
 
 marginal_plot(astra_p4)
 
-## Check for non-linearity
-
-# quadratic term for vax
-
-astra_mod1 = lm(willingness~vax +
-                  I(vax^2)+
-                  age*frame, data = astra)
-
-partial_residual_plot(willingness~age, 
-                      model=astra_mod1, 
-                      added_term = ~age, 
-                      data=astra) + 
-  xlab("Age") + 
-  theme_bw()
 
 
-partial_residual_plot(willingness~age | frame, 
-                      model=astra_mod1, 
-                      added_term = ~age*frame, 
-                      data=astra) + 
-  xlab("Age") + 
-  theme_bw()
 
-
-### Plot vax
-
-partial_residual_plot(willingness~vax, 
-                      model=astra_mod1, 
-                      added_term = ~vax + I(vax^2), 
-                      data=astra) +
-  xlab("Vaccination Hesitency")+
-  theme_bw()
-
-astra_mod2 = lm(willingness~vax + I(vax^2) +
-                  age*frame, data = astra)
-
-visualize(astra_mod2, plot="model")
-
-visualize(astra_mod2, plot="residuals")
-
-## Scale variables?
-
-astra$age_scaled <- astra$age - mean(astra$age, na.rm=TRUE)
-
-astra$vax_scaled <- astra$vax - mean(astra$vax, na.rm=TRUE)
-
-summary(astra)
-
-###  GLM for hypothesis 1 - gain frame messages will increase willingness as age increases (interaction)
-
-astra_mod3 = lm(willingness~vax_scaled + age_scaled*frame, data = astra)
-
-visualize(astra_mod3, plot="model")
-
-visualize(astra_mod3)
-
-## Plots look passable?
-
-summary(astra_mod3)
-
-#### H1 not supported.
 
 ### Alternative hypothesis 1 - less bis and bas with age will have less effect on willingness
 
@@ -423,6 +371,85 @@ estimates(astra_moda1)
 
 
 ```
+
+
+```{r}
+### Regression analyses on astra data ###
+
+
+
+## Centre variables?
+
+astra$age_scaled <- astra$age - mean(astra$age, na.rm=TRUE)
+
+astra$vax_scaled <- astra$vax - mean(astra$vax, na.rm=TRUE)
+
+flexplot(willingness~age_scaled, data = astra) ## The plots do not seem changed by centreing
+
+
+###  GLM for hypothesis 1 - gain frame messages will increase willingness as age increases (interaction)
+
+astra_mod1 = lm(willingness~vax_scaled + age_scaled*frame, data = astra)
+
+visualize(astra_mod1, plot="model")
+
+visualize(astra_mod1)
+
+## Do not look normal or linear...
+
+ ## create "weights" 
+
+weights = 1 / lm(abs(astra_mod1$residuals) ~ astra_mod1$fitted.values)$fitted.values^2  
+
+  ## fit a new model that weights the residuals
+
+good_model = lm(willingness~vax_scaled + age_scaled*frame, data = astra, weights=weights)
+
+visualize(good_model) ## Doesn't look like it changes much
+
+## Try robust model
+
+astra_mod2 = rlm(willingness~vax_scaled + age_scaled*frame, data = astra)
+
+visualize(astra_mod1, plot = "model")
+
+visualize(astra_mod2, plot = "model")
+
+visualize(astra_mod2, plot = "residuals")
+
+## Try ordinal logistic regression
+
+# Set factors
+
+astra$willingnessfactor <- as.factor(astra$willingness)
+
+levels(astra$willingnessfactor) <-  c("Definitely would not", "Probably would not", "Might or might not", "Probably would", "Definitely would")
+
+astra_mod3 = polr(willingnessfactor~vax_scaled + age_scaled*frame, data = astra, Hess=TRUE)
+
+brant(astra_mod3)
+
+##### Proportional odds assumption violated ######
+
+summary(astra_mod3)
+
+summary(astra_mod2)
+
+### Visualisations of log model
+
+Effect(focal.predictors = "frame",astra_mod3)
+plot(Effect(focal.predictors = "age_scaled",astra_mod3))
+plot(Effect(focal.predictors = c("frame", "age_scaled"),astra_mod3))
+
+### Try model using vglm as you can specify false for parallel slops
+
+astra_mod4 <- vglm(formula = willingnessfactor~vax_scaled + age_scaled*frame, family = cumulative(parallel = FALSE), 
+        data = astra)
+
+summary(astra_mod4)
+
+```
+
 
 
 ```{r}
