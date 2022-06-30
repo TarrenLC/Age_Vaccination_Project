@@ -60,10 +60,6 @@ library(foreign)
 
 library(reshape2)
 
-library(ordinal)
-
-library(oglmx)
-
 library(flexplot)
 
 library(brant)
@@ -71,6 +67,10 @@ library(brant)
 library(effects)
 
 library(VGAM)
+
+library(nnet)
+
+library(effects)
 
 ```
 
@@ -338,16 +338,6 @@ astra_p5 = flexplot(willingness~vax + frame | age, data = astra)
 marginal_plot(astra_p4)
 
 
-
-
-
-### Alternative hypothesis 1 - less bis and bas with age will have less effect on willingness
-
-astra$bis_scaled <- astra$age - mean(astra$bis, na.rm=TRUE)
-
-astra$bas_scaled <- astra$vax - mean(astra$bas, na.rm=TRUE)
-
-
 astra_a1 = flexplot(willingness~age + bis | vax, data = astra)
 
 marginal_plot(astra_a1)
@@ -360,24 +350,10 @@ astra_a3 = flexplot(willingness~bis + age | vax, data = astra)
 
 marginal_plot(astra_a3)
 
-astra_moda1 = lm(willingness~vax_scaled + age_scaled*bis + age_scaled*bas, data = astra)
-
-visualize(astra_moda1)
-
-summary(astra_moda1)
-
-estimates(astra_moda1)
-
-
-
 ```
 
 
 ```{r}
-### Regression analyses on astra data ###
-
-
-
 ## Centre variables?
 
 astra$age_scaled <- astra$age - mean(astra$age, na.rm=TRUE)
@@ -396,16 +372,6 @@ visualize(astra_mod1, plot="model")
 visualize(astra_mod1)
 
 ## Do not look normal or linear...
-
- ## create "weights" 
-
-weights = 1 / lm(abs(astra_mod1$residuals) ~ astra_mod1$fitted.values)$fitted.values^2  
-
-  ## fit a new model that weights the residuals
-
-good_model = lm(willingness~vax_scaled + age_scaled*frame, data = astra, weights=weights)
-
-visualize(good_model) ## Doesn't look like it changes much
 
 ## Try robust model
 
@@ -431,9 +397,41 @@ brant(astra_mod3)
 
 ##### Proportional odds assumption violated ######
 
+## Another check for proportional odds assumption ##
+
+sf <- function(y){
+  c('Y>=1' = qlogis(mean(y >= 1)),
+    'Y>=2' = qlogis(mean(y >= 2)),
+    'Y>=3' = qlogis(mean(y >= 3)),
+    'Y>=4' = qlogis(mean(y >= 4)),
+    'Y>=5' = qlogis(mean(y >= 5)))
+    }
+
+(s1 <- with(astra, summary(as.numeric(willingness) ~ vax_scaled + age_scaled*frame, fun=sf)))
+
+glm(I(as.numeric(willingness) >= 2) ~ vax_scaled, family="binomial", data = astra)
+
+glm(I(as.numeric(willingness) >= 3) ~ vax_scaled, family="binomial", data = astra)
+
+glm(I(as.numeric(willingness) >= 4) ~ vax_scaled, family="binomial", data = astra)
+
+glm(I(as.numeric(willingness) >= 5) ~ vax_scaled, family="binomial", data = astra)
+
+## Normalise first set of coefficients to be 0
+
+s1[, 4] <- s1[, 4] - s1[, 5]
+s1[, 5] <- s1[, 5] - s1[, 5]
+s1 # print
+
+plot(s1, which=1:5, pch=1:5, xlab='logit', main=' ', xlim=range(s1[,3:5]))
+
+## Proportional odds assumption seems violated...
+
+
 summary(astra_mod3)
 
 summary(astra_mod2)
+
 
 ### Visualisations of log model
 
@@ -443,63 +441,161 @@ plot(Effect(focal.predictors = c("frame", "age_scaled"),astra_mod3))
 
 ### Try model using vglm as you can specify false for parallel slops
 
-astra_mod4 <- vglm(formula = willingnessfactor~vax_scaled + age_scaled*frame, family = cumulative(parallel = FALSE), 
-        data = astra)
+astra_mod4 = vglm(willingnessfactor~vax_scaled + age_scaled*frame, data = astra, family = cumulative(parallel = FALSE))
 
 summary(astra_mod4)
+summary(astra_mod3)
+
+summary(astra_mod4) ### Hauck-Donner effect
+
+## Add in risk perception to the model
+
+astra$risk_perceptionfactor <- as.factor(astra$risk_perception)
+
+astra_mod5 = polr(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*frame, data = astra, Hess=TRUE)
+
+brant(astra_mod5)
+
+summary(astra_mod5)
+
+## To get pvalues...
+
+(az_ctable1 <- coef(summary(astra_mod5)))
+
+## calculate and store p values
+az_p1 <- pnorm(abs(az_ctable1[, "t value"]), lower.tail = FALSE) * 2
+
+## combined table
+(az_ctable1 <- cbind(az_ctable1, "p value" = az_p1))
+
+## Confidence intervals
+
+(az_ci1 <- confint(astra_mod5))
+
+## odds ratios
+exp(coef(astra_mod5))
+
+
+### Alternative hypothesis 1 - less bis and bas with age will have less effect on willingness
+
+astra$bis_scaled <- astra$bis - mean(astra$bis, na.rm=TRUE)
+
+astra$bas_scaled <- astra$bas - mean(astra$bas, na.rm=TRUE)
+
+astra_modA1 = polr(willingnessfactor~vax_scaled + risk_perceptionfactor + bis_scaled*age_scaled + bis_scaled*frame + 
+                     bas_scaled*age_scaled + bas_scaled*frame, data = astra, Hess=TRUE)
+
+summary(astra_modA1)
+
+brant(astra_modA1) # vax and bis*age significant
+
+## To get pvalues...
+
+(az_ctable2 <- coef(summary(astra_modA1)))
+
+## calculate and store p values
+az_p2 <- pnorm(abs(az_ctable2[, "t value"]), lower.tail = FALSE) * 2
+
+## combined table
+(az_ctable2 <- cbind(az_ctable2, "p value" = az_p2))
+
+## Confidence intervals
+
+(az_ci1 <- confint(astra_modA1))
+
+## odds ratios
+exp(coef(astra_modA1))
+
+# Without the bis/bas frame interactions
+
+astra_modA2 = polr(willingnessfactor~vax_scaled + risk_perceptionfactor + bis_scaled*age_scaled + 
+                     bas_scaled*age_scaled, data = astra, Hess=TRUE)
+
+summary(astra_modA2)
+
+
+## To get pvalues...
+
+(az_ctable3 <- coef(summary(astra_modA2)))
+
+## calculate and store p values
+az_p3 <- pnorm(abs(az_ctable3[, "t value"]), lower.tail = FALSE) * 2
+
+## combined table
+(az_ctable3 <- cbind(az_ctable3, "p value" = az_p3))
+
 
 ```
 
 
-
 ```{r}
 
-flexplot(willingness~risk_perception, data=astra)
+### Look at Astra multinomial models ###
 
-flexplot(willingness~bis, data=astra)
+astramlm1 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*frame, data = astra)
 
-flexplot(willingness~bas, data=astra)
+G1 <- -2 * (logLik(astra_mod5)[1] - logLik(astramlm1)[1])
+pchisq(G1, df = length(astra_mod5$zeta) - 1, lower.tail = FALSE)
 
-flexplot(willingness~vax, data=astra)
+### Above code tests whether the proportional odds model fits differently than the multinomial one.
+### As this is significant, the null hypothesis, that the PO model fits differently, is rejected.
 
-flexplot(willingness~vax | age, data = astra, method = "lm")
+summary(astramlm1)
 
-flexplot(willingness~age + frame, data=astra, method="lm")
+# Check the Z-score for the model (wald Z)
+z1 <- summary(astramlm1)$coefficients/summary(astramlm1)$standard.errors
 
-## Pannelled plots
+# 2-tailed z test
+p1 <- (1 - pnorm(abs(z1), 0, 1)) * 2
+p1
 
-flexplot(willingness~age | frame, data=astra)
+# Test the goodness of fit
+chisq.test(astra$willingnessfactor,predict(astramlm1))
 
-flexplot(willingness~age + frame | vax, data = astra)
+### With BIS and BAS ####
 
-## Quadratic 
+astramlm2 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor +  bis_scaled*age_scaled + bis_scaled*frame +
+                     bas_scaled*age_scaled + bas_scaled*frame, data = astra)
 
-flexplot(willingness~age | frame, data=astra, method="quadratic")
+summary(astramlm2)
 
-added.plot(willingness~age + frame , data=astra, 
-           lm_formula = willingness~vax)
+# Check the Z-score for the model (wald Z)
+z2 <- summary(astramlm2)$coefficients/summary(astramlm2)$standard.errors
 
-## Check if covariate interacts with IVs
+# 2-tailed z test
+p2 <- (1 - pnorm(abs(z2), 0, 1)) * 2
+p2
 
-flexplot(willingness~vax + age, data=astra, method="lm")
-flexplot(willingness~age + vax, data=astra, method="lm") 
+# Test the goodness of fit
+chisq.test(astra$willingnessfactor,predict(astramlm2))
 
-# Interaction exists between age and vax
+## Model with all of the interactions
 
-## Check if vax interacts with frame
+astramlm3 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*frame + bis_scaled*age_scaled + bis_scaled*frame +
+                     bas_scaled*age_scaled + bas_scaled*frame, data = astra)
 
-flexplot(willingness~vax + frame, data=astra, method="lm")
-flexplot(willingness~frame + vax, data=astra, method="lm") 
+summary(astramlm3)
 
-# It does.
+# Check the Z-score for the model (wald Z)
+z3 <- summary(astramlm3)$coefficients/summary(astramlm3)$standard.errors
 
-flexplot(willingness~age + bis, data=astra, method="lm")
+# 2-tailed z test
+p3 <- (1 - pnorm(abs(z3), 0, 1)) * 2
+p3
 
-flexplot(willingness~age + bas, data=astra, method="lm")
+# Test the goodness of fit
+chisq.test(astra$willingnessfactor,predict(astramlm3))
 
-flexplot(willingness~bis + frame, data=astra, method="lm")
+plot(Effect("age_scaled",astramlm3),multiline=T)
+#shows multiple lines of predictions in the same plot
 
-flexplot(willingness~bas + frame, data=astra, method="lm")
+plot(Effect("bis_scaled",astramlm3),multiline=T)
+
+plot(Effect("bas_scaled",astramlm3),multiline=T)
+
+plot(Effect("frame",astramlm3),multiline=T)
+
+plot(Effect("risk_perceptionfactor",astramlm3),multiline=T)
 
 ```
 
@@ -534,118 +630,3 @@ flexplot(willingness~bis + frame, data=pfizer, method="lm")
 flexplot(willingness~bas + frame, data=pfizer, method="lm")
 
 ```
-
-
-```{r}
-### Astra analyses ###
-
-mod_interaction_az = lm(willingness~vax + frame + age + risk_perception + bis + bas +
-                          age*frame + age*bas + age*bis + frame*bis + frame*bas, data = astra)
-
-visualize(mod_interaction_az, plot="residuals")
-
-estimates(mod_interaction_az)
-
-```
-
-
-
-```{r}
-#### Logistic ordinal regression ####
-
-#Scatter Plot
-
-astra_long <- filter(vacdf.long, vaccine == "will_as_z")
-
-pfizer_long <- filter(vacdf.long, vaccine == "will_pf")
-
-plot(willingness ~ age, data  = astra_long , main = "Scatter Plot")
-
-### Pfizer ###
-
-pfizer_long$willingness <- factor(pfizer_long$willingness)
-
-summary(pfizer_long$willingness)
-
-pfizer_long$frame <- factor(pfizer_long$frame)
-
-summary(pfizer_long$frame)
-
-pfizer_long$risk_perception <- factor(pfizer_long$risk_perception)
-
-summary(pfizer_long$risk_perception)
-
-pf_m1 <- polr(willingness ~ 1, data = pfizer_long, Hess = TRUE)
-
-summary(pf_m1)
-
-## fit ordered logit model and store results 'm'
-pf_m2 <- polr(willingness ~ frame + age + risk_perception + 
-              bis + bas + vax + age*frame + age*bis + age*bas, 
-              data = pfizer_long, Hess=TRUE)
-
-## view a summary of the model
-summary(pf_m2)
-
-anova(pf_m1, pf_m2)
-
-## To get pvalues...
-
-(pf_ctable1 <- coef(summary(pf_m2)))
-
-## calculate and store p values
-pf_p1 <- pnorm(abs(pf_ctable1[, "t value"]), lower.tail = FALSE) * 2
-
-## combined table
-(pf_ctable1 <- cbind(pf_ctable1, "p value" = pf_p1))
-
-## Confidence intervals
-
-(pf_ci <- confint(pf_m2))
-
-## odds ratios
-exp(coef(pf_m2))
-
-## Check proportional odds
-
-sf <- function(y){
-  c('Y>=1' = qlogis(mean(y >= 1)),
-    'Y>=2' = qlogis(mean(y >= 2)),
-    'Y>=3' = qlogis(mean(y >= 3)),
-    'Y>=4' = qlogis(mean(y >= 4)),
-    'Y>=5' = qlogis(mean(y >= 5)))
-    }
-
-(s1 <- with(pfizer_long, summary(as.numeric(willingness) ~ frame + age + risk_perception + 
-                                   bis + bas + vax + age*frame + age*bis + age*bas, fun=sf)))
-
-glm(I(as.numeric(willingness) >= 3) ~ risk_perception, family="binomial", data = pfizer_long)
-
-glm(I(as.numeric(willingness) >= 4) ~ risk_perception, family="binomial", data = pfizer_long)
-
-## Normalise first set of coefficients to be 0
-
-s1[, 4] <- s1[, 4] - s1[, 3]
-s1[, 3] <- s1[, 3] - s1[, 3]
-s1 # print
-
-plot(s1, which=1:5, pch=1:3, xlab='logit', main=' ', xlim=range(s1[,3:4]))
-
-## Proportional odds assumption seems violated...
-
-## Trying generalized ordinal model
-
-pf_m3 <- clm(willingness ~ frame + risk_perception + age + bis + bas + vax, nominal = ~ age + bis + bas + vax, data = pfizer_long)
-
-pf_m3
-
-pf_m4 <- oglmx(willingness ~ frame + risk_perception + age + bis + bas + vax +
-                age*frame + age*bis + age*bas, data = pfizer_long,
-               link="probit", constantMEAN = FALSE, constantSD = FALSE,delta=0,threshparam = NULL)
-
-summary(pf_m4)
-
-```
-
-
-
