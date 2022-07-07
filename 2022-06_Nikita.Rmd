@@ -158,6 +158,8 @@ astra <- select(astra, "willingness","age", "frame", "risk_perception", "bis", "
 
 az_cor <- cor(astra, method = "kendall")
 
+az_cor
+
 
 png(file = "astra_corr_plot01.png")
 corrplot(az_cor)
@@ -168,6 +170,8 @@ pfizer$frame <- ifelse(pfizer$frame == "Positive", 1, 0)
 pfizer <- select(pfizer, "willingness","age", "frame", "risk_perception", "bis", "bas", "vax")
 
 pf_cor <- cor(pfizer, method = "kendall")
+
+pf_cor
 
 png(file = "pfizer_corr_plot01.png")
 corrplot(pf_cor)
@@ -181,8 +185,10 @@ astra %>%
 pfizer %>% 
   get_summary_stats(willingness, type = "mean_sd")
 
+vacdf.long$framenum <- ifelse(vacdf.long$frame == "Positive", 1, 0)
+
 vacdf.long %>% 
-  get_summary_stats(c(age, risk_perception, bis, bas, vax), type = "mean_sd")
+  get_summary_stats(c(age, framenum, risk_perception, bis, bas, vax), type = "mean_sd")
 
 
 ```
@@ -544,3 +550,31 @@ flexplot(willingness~bis + frame, data=pfizer, method="lm")
 flexplot(willingness~bas + frame, data=pfizer, method="lm")
 
 ```
+
+
+```{r}
+#### Pfizer GLMs #####
+
+## Centre variables?
+
+pfizer$age_scaled <- pfizer$age - mean(pfizer$age, na.rm=TRUE)
+
+pfizer$vax_scaled <- pfizer$vax - mean(pfizer$vax, na.rm=TRUE)
+
+# Set frame factor levels back to negative and positive
+
+pfizer$framefactor <- as.factor(pfizer$frame)
+
+levels(pfizer$framefactor)
+
+levels(pfizer$framefactor) <- c("Negative", "Positive")
+
+pfizer_mod1 = lm(willingness~vax_scaled + age_scaled*framefactor, data = pfizer)
+
+visualize(pfizer_mod1, plot="residuals")
+
+visualize(pfizer_mod1)
+
+```
+
+
