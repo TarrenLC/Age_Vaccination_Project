@@ -569,11 +569,131 @@ levels(pfizer$framefactor)
 
 levels(pfizer$framefactor) <- c("Negative", "Positive")
 
-pfizer_mod1 = lm(willingness~vax_scaled + age_scaled*framefactor, data = pfizer)
+## Add in risk perception to the model
+
+pfizer$risk_perceptionfactor <- as.factor(pfizer$risk_perception)
+
+levels(pfizer$risk_perceptionfactor)
+
+levels(pfizer$risk_perceptionfactor) <- c("Not unwell at all", "Slightly unwell", "Moderately unwell", "Very unwell", "Extremely unwell")
+
+pfizer_mod1 = lm(willingness~vax_scaled + risk_perceptionfactor + age_scaled*framefactor, data = pfizer)
 
 visualize(pfizer_mod1, plot="residuals")
 
 visualize(pfizer_mod1)
+
+### Sensitivity analyses against a robust model##
+
+pfizer_mod2 = rlm(willingness~vax_scaled + risk_perceptionfactor + age_scaled*framefactor, data = pfizer)
+
+visualize(pfizer_mod1, plot = "model")
+
+visualize(pfizer_mod2, plot = "model")
+
+## Try ordinal logistic regression
+
+# Set factors
+
+pfizer$willingnessfactor <- as.factor(pfizer$willingness)
+levels(pfizer$willingnessfactor)
+
+levels(pfizer$willingnessfactor) <-  c("Definitely would not", "Probably would not", "Might or might not", "Probably would", "Definitely would")
+
+levels(pfizer$willingnessfactor)
+
+pfizer_mod3 = polr(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*framefactor, data = pfizer, Hess=TRUE)
+
+brant(pfizer_mod3)
+
+summary(pfizer_mod3)
+
+### Check proportional odds the other way 
+
+(s2 <- with(pfizer, summary(as.numeric(willingness) ~ vax_scaled + risk_perceptionfactor + age_scaled*framefactor, fun=sf)))
+
+
+## Normalise first set of coefficients to be 0
+
+s2[, 4] <- s2[, 4] - s2[, 5]
+s2[, 5] <- s2[, 5] - s2[, 5]
+s2 # print
+
+plot(s2, which=1:5, pch=1:5, xlab='logit', main=' ', xlim=range(s1[,3:5]))
+
+# Proportional odds looks violated # 
+
+
+### Try model using vglm as you can specify false for parallel slops
+
+pfizer_mod4 = vglm(willingnessfactor~vax_scaled + age_scaled*framefactor, data = pfizer, family = cumulative(parallel = FALSE))
+
+summary(pfizer_mod4)
+
+```
+
+
+```{r}
+
+### Look at Pfizer multinomial models ###
+
+pfmlm1 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*framefactor, data = pfizer)
+
+G2 <- -2 * (logLik(pfizer_mod3)[1] - logLik(pfmlm1)[1])
+pchisq(G2, df = length(pfizer_mod3$zeta) - 1, lower.tail = FALSE)
+
+### Above code tests whether the proportional odds model fits differently than the multinomial one.
+### As this is significant, the null hypothesis, that the PO model fits differently, is rejected.
+
+summary(pfmlm1)
+
+# Check the Z-score for the model (wald Z)
+z4 <- summary(pfmlm1)$coefficients/summary(pfmlm1)$standard.errors
+
+# 2-tailed z test
+p4 <- (1 - pnorm(abs(z4), 0, 1)) * 2
+p4
+
+# Test the goodness of fit
+chisq.test(pfizer$willingnessfactor,predict(pfmlm1))
+
+# Check reliability of predicted values
+
+pred.multinom4 <- predict(pfmlm1, pfizer)
+pprob4 <- predict(pfmlm1, pfizer, type = "p")
+pred_accuracy4 <- mean(pred.multinom4 == pfizer$willingnessfactor)
+pred_accuracy4 # 52% of participants' willingness to get pf vaccine in the present data were verified to be correct using this regression model
+
+### With BIS and BAS ####
+
+### Alternative hypothesis 1 - less bis and bas with age will have less effect on willingness
+
+pfizer$bis_scaled <- pfizer$bis - mean(pfizer$bis, na.rm=TRUE)
+
+pfizer$bas_scaled <- pfizer$bas - mean(pfizer$bas, na.rm=TRUE)
+
+pfmlm2 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor +  bis_scaled*age_scaled + bis_scaled*framefactor +
+                     bas_scaled*age_scaled + bas_scaled*framefactor, data = pfizer)
+
+summary(pfmlm2)
+
+# Check the Z-score for the model (wald Z)
+z5 <- summary(pfmlm2)$coefficients/summary(pfmlm2)$standard.errors
+
+# 2-tailed z test
+p5 <- (1 - pnorm(abs(z2), 0, 1)) * 2
+p5
+
+# Test the goodness of fit
+chisq.test(pfizer$willingnessfactor,predict(pfmlm2))
+
+# Check reliability of predicted values
+
+pred.multinom5 <- predict(pfmlm2, pfizer)
+pprob5 <- predict(pfmlm2, pfizer, type = "p")
+pred_accuracy5 <- mean(pred.multinom5 == pfizer$willingnessfactor)
+pred_accuracy5 # 57% of participants' willingness to get pf vaccine in the present data were verified to be correct using this regression model
+
 
 ```
 
