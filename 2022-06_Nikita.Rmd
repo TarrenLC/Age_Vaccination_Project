@@ -475,6 +475,31 @@ pprob2 <- predict(astramlm2, astra, type = "p")
 pred_accuracy2 <- mean(pred.multinom2 == astra$willingnessfactor)
 pred_accuracy2 # 49% of participants' willingness to get az vaccine in the present data were verified to be correct using this regression model
 
+
+## BIS BAS model without interactions with frame.
+
+astramlm2.5 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor +  bis_scaled*age_scaled +
+                     bas_scaled*age_scaled, data = astra)
+
+summary(astramlm2.5)
+
+# Check the Z-score for the model (wald Z)
+z2.5 <- summary(astramlm2.5)$coefficients/summary(astramlm2.5)$standard.errors
+
+# 2-tailed z test
+p2.5 <- (1 - pnorm(abs(z2.5), 0, 1)) * 2
+p2.5
+
+# Test the goodness of fit
+chisq.test(astra$willingnessfactor,predict(astramlm2.5))
+
+# Check reliability of predicted values
+
+pred.multinom2.5 <- predict(astramlm2.5, astra)
+pprob2.5 <- predict(astramlm2.5, astra, type = "p")
+pred_accuracy2.5 <- mean(pred.multinom2.5 == astra$willingnessfactor)
+pred_accuracy2.5
+
 ## Model with all of the interactions including the bis and bas with frame
 
 astramlm3 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*framefactor + bis_scaled*age_scaled + bis_scaled*framefactor +
@@ -509,6 +534,10 @@ plot(allEffects(astramlm1),
 
 
 plot(allEffects(astramlm2), 
+     lines = list(multiline = T), 
+     confint = list(style = "auto"), rows = 3, cols = 2)
+
+plot(allEffects(astramlm2.5), 
      lines = list(multiline = T), 
      confint = list(style = "auto"), rows = 3, cols = 2)
 
@@ -664,6 +693,13 @@ pprob4 <- predict(pfmlm1, pfizer, type = "p")
 pred_accuracy4 <- mean(pred.multinom4 == pfizer$willingnessfactor)
 pred_accuracy4 # 52% of participants' willingness to get pf vaccine in the present data were verified to be correct using this regression model
 
+### Visualisation of pfizer mlm 1
+
+plot(allEffects(pfmlm1), 
+     lines = list(multiline = T), 
+     confint = list(style = "auto"), rows = 3, cols = 1)
+
+
 ### With BIS and BAS ####
 
 ### Alternative hypothesis 1 - less bis and bas with age will have less effect on willingness
@@ -681,7 +717,7 @@ summary(pfmlm2)
 z5 <- summary(pfmlm2)$coefficients/summary(pfmlm2)$standard.errors
 
 # 2-tailed z test
-p5 <- (1 - pnorm(abs(z2), 0, 1)) * 2
+p5 <- (1 - pnorm(abs(z5), 0, 1)) * 2
 p5
 
 # Test the goodness of fit
@@ -693,6 +729,75 @@ pred.multinom5 <- predict(pfmlm2, pfizer)
 pprob5 <- predict(pfmlm2, pfizer, type = "p")
 pred_accuracy5 <- mean(pred.multinom5 == pfizer$willingnessfactor)
 pred_accuracy5 # 57% of participants' willingness to get pf vaccine in the present data were verified to be correct using this regression model
+
+
+### Visualisation of pfizer mlm 2
+
+plot(allEffects(pfmlm2), 
+     lines = list(multiline = T), 
+     confint = list(style = "auto"), rows = 3, cols = 2)
+
+## BIS/BAS model without the frame interactions
+
+pfmlm2.5 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor +  bis_scaled*age_scaled  +
+                     bas_scaled*age_scaled, data = pfizer)
+
+summary(pfmlm2.5)
+
+# Check the Z-score for the model (wald Z)
+z6 <- summary(pfmlm2.5)$coefficients/summary(pfmlm2.5)$standard.errors
+
+# 2-tailed z test
+p6 <- (1 - pnorm(abs(z6), 0, 1)) * 2
+p6
+
+# Test the goodness of fit
+chisq.test(pfizer$willingnessfactor,predict(pfmlm2.5))
+
+# Check reliability of predicted values
+
+pred.multinom6 <- predict(pfmlm2.5, pfizer)
+pprob6 <- predict(pfmlm2.5, pfizer, type = "p")
+pred_accuracy6 <- mean(pred.multinom6 == pfizer$willingnessfactor)
+pred_accuracy6
+
+
+### Visualisation of pfizer mlm 2.5
+
+plot(allEffects(pfmlm2.5), 
+     lines = list(multiline = T), 
+     confint = list(style = "auto"), rows = 3, cols = 2)
+
+## Model with all of the interactions including the bis and bas with frame
+
+pfmlm3 <- multinom(willingnessfactor~vax_scaled + risk_perceptionfactor + age_scaled*framefactor + bis_scaled*age_scaled + bis_scaled*framefactor +
+                     bas_scaled*age_scaled + bas_scaled*framefactor, data = pfizer)
+
+summary(pfmlm3)
+
+# Check the Z-score for the model (wald Z)
+z7 <- summary(pfmlm3)$coefficients/summary(pfmlm3)$standard.errors
+
+# 2-tailed z test
+p7 <- (1 - pnorm(abs(z7), 0, 1)) * 2
+p7
+
+# Test the goodness of fit
+chisq.test(pfizer$willingnessfactor,predict(pfmlm3))
+
+# Check reliability of predicted values
+
+pred.multinom7 <- predict(pfmlm3, pfizer)
+pprob7 <- predict(pfmlm3, pfizer, type = "p")
+pred_accuracy7 <- mean(pred.multinom7 == pfizer$willingnessfactor)
+pred_accuracy7
+
+### Visualisation of pfizer mlm 3
+
+plot(allEffects(pfmlm3), 
+     lines = list(multiline = T), 
+     confint = list(style = "auto"), rows = 4, cols = 2)
+
 
 
 ```
